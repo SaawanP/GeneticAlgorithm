@@ -13,7 +13,7 @@ class GA:
                  num_parents,
                  fitness_func,
                  crossover_func=single_point,
-                 crossover_prob=1,
+                 crossover_prob=None,
                  mutation_prob=0.05,
                  parent_selection_func="rws",
                  generational_gap=1,
@@ -164,7 +164,7 @@ class GA:
             self.on_parent_selection(self, parents)
 
         # crossover for children
-        children = self.crossover_func(parents, self.crossover_prob)
+        children = self.crossover_func(parents, self.crossover_prob, self.genes_info)
 
         if self.on_crossover is not None:
             self.on_crossover(self, children)
@@ -201,7 +201,7 @@ class GA:
                             new_gene = new_gene ^ 2 ** bit  # flip bit
                     if gene_info["type"] == "discrete":  # check if new mutation in within range, otherwise clamp it
                         if new_gene * gene_info["precision"] > abs(gene_info["range"][1] - gene_info["range"][0]):
-                            new_gene = 2 ** gene_info["length"] - 1
+                            new_gene = int(gene_info["range"][1] - gene_info["range"][0])
                 # TODO add a variation for random noise
                 elif gene_info["type"] == "real":
                     mutate = np.random.uniform()
