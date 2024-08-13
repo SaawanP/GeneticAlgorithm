@@ -1,5 +1,5 @@
 import math
-import numpy
+import numpy as np
 
 
 from crossover import *
@@ -18,6 +18,7 @@ class GA:
                  parent_selection_func="rws",
                  generational_gap=1,
                  survivor_selection_func=all_selection,
+                 maximizing=True,
                  on_fitness_calc=None,
                  on_parent_selection=None,
                  on_crossover=None,
@@ -31,7 +32,9 @@ class GA:
         self.num_parents = num_parents
         self.crossover_prob = crossover_prob
         self.mutation_prob = mutation_prob
+        # generational_gap is [0,1], 1 means all parents are removed, 0 means no parents are removed from next generation
         self.generational_gap = generational_gap
+        self.maximizing = maximizing
 
         # These will hold the best solution from every generation or the current best
         self.best_solution = []
@@ -58,7 +61,7 @@ class GA:
         else:
             raise ValueError(f"invalid value for crossover_func, got type: {type(crossover_func)}, value: {crossover_func}")
 
-        if callable(parent_selection_func) and parent_selection_func.__code__.co_argcount == 3:
+        if callable(parent_selection_func) and parent_selection_func.__code__.co_argcount == 4:
             self.parent_select = parent_selection_func
         elif type(parent_selection_func) is str:
             if parent_selection_func == 'rws':
@@ -126,11 +129,11 @@ class GA:
             genes = []
             for gene_info in self.genes_info:
                 if gene_info["type"] == "binary" or gene_info["type"] == "discrete":
-                    gene = numpy.random.randint(2 ** gene_info["length"])
+                    gene = np.random.randint(2 ** gene_info["length"])
                 elif gene_info["type"] == "real":
-                    gene = numpy.random.uniform(*gene_info["range"])
+                    gene = np.random.uniform(*gene_info["range"])
                 elif gene_info["type"] == "integer":
-                    gene = numpy.random.randint(*gene_info["range"])
+                    gene = np.random.randint(*gene_info["range"])
                 else:
                     raise TypeError(f"Unexpected gene_info['type'], got {gene_info['type']}")
                 genes.append(gene)
@@ -155,7 +158,7 @@ class GA:
             self.on_fitness_calc(self, self.population, self.individuals_fitness)
 
         # get parents
-        parents, parent_idx = self.parent_select(self.population, self.individuals_fitness, self.num_parents)
+        parents, parent_idx = self.parent_select(self.population, self.individuals_fitness, self.num_parents, self.maximizing)
 
         if self.on_parent_selection is not None:
             self.on_parent_selection(self, parents)
@@ -173,8 +176,13 @@ class GA:
             self.on_mutate(self, children)
 
         # select survivors
-        fitness = [fitness for i, fitness in enumerate(self.individuals_fitness) if i in parent_idx]
-        self.population = self.survivor_selection_func(parents, children, fitness, self.generational_gap)
+        fitness = np.array([self.individuals_fitness[i] for i in parent_idx])
+        idx_sort = fitness.argsort()
+        if self.maximizing:
+            parents = parents[idx_sort[::-1]]
+        else:
+            parents = parents[idx_sort]
+        self.population = self.survivor_selection_func(parents, children, self.generational_gap)
 
     def calculate_fitness(self):
         self.individuals_fitness = []
@@ -188,7 +196,7 @@ class GA:
                 new_gene = child[gene_num]
                 if gene_info["type"] == "binary" or gene_info["type"] == "discrete":
                     for bit in range(gene_info["length"]):
-                        mutate = numpy.random.uniform()
+                        mutate = np.random.uniform()
                         if mutate <= self.mutation_prob:
                             new_gene = new_gene ^ 2 ** bit  # flip bit
                     if gene_info["type"] == "discrete":  # check if new mutation in within range, otherwise clamp it
@@ -196,13 +204,13 @@ class GA:
                             new_gene = 2 ** gene_info["length"] - 1
                 # TODO add a variation for random noise
                 elif gene_info["type"] == "real":
-                    mutate = numpy.random.uniform()
+                    mutate = np.random.uniform()
                     if mutate <= self.mutation_prob:
-                        new_gene = numpy.random.uniform(*gene_info["range"])  # new random number within range
+                        new_gene = np.random.uniform(*gene_info["range"])  # new random number within range
                 # TODO add a variation for smoother integer noise
                 elif gene_info["type"] == "integer":
-                    mutate = numpy.random.uniform()
+                    mutate = np.random.uniform()
                     if mutate <= self.mutation_prob:
-                        new_gene = numpy.random.randint(*gene_info["range"])  # new random number within range
+                        new_gene = np.random.randint(*gene_info["range"])  # new random number within range
                 child[gene_num] = new_gene
         return children
